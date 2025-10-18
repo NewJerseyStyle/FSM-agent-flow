@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "llm-fsm"
+name = "fsm-agent-flow"
 version = "0.1.0"
-description = "Developer-friendly workflow framework with LLM integration and state management"
+description = "Developer-friendly workflow framework with AI agent integration and state management"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
@@ -76,14 +76,13 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/llm-fsm"
-Documentation = "https://github.com/yourusername/llm-fsm#readme"
-Repository = "https://github.com/yourusername/llm-fsm"
-Issues = "https://github.com/yourusername/llm-fsm/issues"
+Homepage = "https://github.com/NewJerseyStyle/FSM-agent-flow"
+Repository = "https://github.com/NewJerseyStyle/FSM-agent-flow"
+Issues = "https://github.com/NewJerseyStyle/FSM-agent-flow/issues"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["llm_fsm*"]
+where = ["src"]
+include = ["*"]
 
 [tool.black]
 line-length = 100
