@@ -80,10 +80,6 @@ Homepage = "https://github.com/NewJerseyStyle/FSM-agent-flow"
 Repository = "https://github.com/NewJerseyStyle/FSM-agent-flow"
 Issues = "https://github.com/NewJerseyStyle/FSM-agent-flow/issues"
 
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["*"]
-
 [tool.black]
 line-length = 100
 target-version = ['py38']
