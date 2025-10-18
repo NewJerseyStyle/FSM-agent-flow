@@ -60,7 +60,9 @@ class MyWorkflow(LLMStateMachine):
     # Define transitions
     trans1 = state1.to(state2)
     trans2 = state2.to(state3)
-    loop = state2.to.itself(on="tool_use")  # Self-transition
+    
+    # Tool use is handled internally within state methods
+    # No explicit self-transitions needed
     
     # Conditional transitions
     branch1 = state1.to(state2, cond="condition_check")
@@ -71,8 +73,13 @@ class MyWorkflow(LLMStateMachine):
     
     # State implementation
     def on_enter_state2(self, state_input=None):
-        # Your logic here
-        return result
+        # Tool use handled by run_llm_with_tools()
+        return self.run_llm_with_tools(
+            system_prompt="...",
+            user_message="...",
+            state_name="state2",
+            max_iterations=10  # Internal tool loop
+        )
 ```
 
 ## LLM Client Creation
@@ -90,6 +97,46 @@ client = create_llm_client("litellm", model="ollama/llama2")
 from smolagents import HfApiModel
 model = HfApiModel()
 client = create_llm_client("smolagents", agent_or_model=model)
+
+# Google ADK 🆕
+from llm_fsm.adk_client import create_adk_agent_with_tools
+
+def my_tool(param: str) -> str:
+    """Tool description."""
+    return f"Result: {param}"
+
+client = create_adk_agent_with_tools(
+    model="gemini-2.0-flash",
+    name="my_agent",
+    instruction="Agent instructions",
+    tools=[my_tool]
+)
+```
+
+## Using Google ADK in States 🆕
+
+```python
+from llm_fsm.adk_client import ADKStateMixin
+
+class MyWorkflow(LLMStateMachine, ADKStateMixin):
+    process = State(initial=True)
+    done = State(final=True)
+    
+    finish = process.to(done)
+    
+    def on_enter_process(self, state_input=None):
+        # ADK handles tool orchestration internally
+        return self.run_with_adk(
+            query=f"Process: {state_input}",
+            state_name="process"
+        )
+
+# ADK benefits:
+# - Native tool orchestration
+# - Built-in pause/resume
+# - HITL tool confirmation
+# - Context compaction
+# - Multi-agent support
 ```
 
 ## Working Memory

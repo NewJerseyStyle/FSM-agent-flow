@@ -143,7 +143,7 @@ class OpenAIClient(BaseLLMClient):
 class LiteLLMClient(BaseLLMClient):
     """LiteLLM client supporting multiple providers."""
     
-    def __init__(self, model: str = "gpt-4", api_key: Optional[str] = None, **config):
+    def __init__(self, model: str = "gemini/gemini-pro", api_key: Optional[str] = None, **config):
         try:
             import litellm
         except ImportError:
@@ -339,4 +339,4 @@ def create_llm_client(
             raise ValueError("smolagents provider requires 'agent_or_model' kwarg")
         return SmolAgentsClient(agent_or_model)
     else:
-        raise ValueError(f"Unknown provider: {provider}. Use 'openai', 'litellm', or 'smolagents'")
+        return OpenAIClient(api_key=api_key, model=model, **kwargs)

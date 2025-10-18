@@ -27,6 +27,9 @@ pip install llm-fsm[litellm]
 # With smolagents support
 pip install llm-fsm[smolagents]
 
+# With Google ADK support
+pip install llm-fsm[adk]
+
 # All integrations
 pip install llm-fsm[all]
 ```
@@ -58,11 +61,11 @@ class MyWorkflow(LLMStateMachine):
     write = research.to(writing)
     finish = writing.to(done)
     
-    # Tool use loop (self-transition)
-    research_loop = research.to.itself(on="tool_use")
+    # Tool use is handled internally within state methods
+    # via run_llm_with_tools() - no explicit self-transitions needed
     
     def on_enter_research(self, state_input=None):
-        """Research state implementation."""
+        """Research state implementation with tool use."""
         context = self.memory.to_context()
         
         system_prompt = f"""You are a researcher.
@@ -72,11 +75,12 @@ class MyWorkflow(LLMStateMachine):
 Research topic: {state_input}
 Use the search tool to gather information."""
         
+        # run_llm_with_tools handles the tool use loop internally
         return self.run_llm_with_tools(
             system_prompt=system_prompt,
             user_message="Begin research",
             state_name="research",
-            max_iterations=10
+            max_iterations=10  # Tools can be called multiple times
         )
 
 # Create and run
@@ -448,6 +452,7 @@ def on_enter_review(self, state_input=None):
 
 See `examples/` directory for complete examples:
 - `example_smolagents.py` - Research and writing workflow with smolagents
+- `example_google_adk.py` - Customer service workflow with Google ADK
 - `example_openai.py` - Customer support workflow with OpenAI
 - `example_nested.py` - Nested state machines (if supported)
 
@@ -467,4 +472,4 @@ MIT License
 
 - Built on [python-statemachine](https://github.com/fgmacedo/python-statemachine)
 - Inspired by OODA loops and agent frameworks
-- Integrates with [smolagents](https://github.com/huggingface/smolagents), [LiteLLM](https://github.com/BerriAI/litellm), and OpenAI
+- Integrates with [smolagents](https://github.com/huggingface/smolagents), [Google ADK](https://github.com/google/adk), [LiteLLM](https://github.com/BerriAI/litellm), and OpenAI

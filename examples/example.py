@@ -63,6 +63,9 @@ class ResearchWritingWorkflow(LLMStateMachine):
     - writing: Write the document
     - review: Review with human feedback
     - done: Final state
+    
+    Note: Tool use is handled internally within each state method
+    via run_llm_with_tools(). No need for explicit self-transitions.
     """
     
     # Define states
@@ -80,10 +83,6 @@ class ResearchWritingWorkflow(LLMStateMachine):
     review_draft = writing.to(review)
     revise = review.to(writing)  # Loop back for revisions
     complete = review.to(done)
-    
-    # Tool use loops (self-transitions)
-    research_loop = research.to.itself(on="tool_use")
-    review_loop = review.to.itself(on="tool_use")
     
     def on_enter_research(self, state_input: Any = None):
         """Research state: Gather information on the topic."""

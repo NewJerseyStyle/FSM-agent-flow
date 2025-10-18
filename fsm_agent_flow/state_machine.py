@@ -27,6 +27,9 @@ class LLMStateMachine(StateMachine):
     
     Developers should inherit from this class and define their states and transitions.
     
+    Note: For tool use loops, don't use self-transitions with 'on' parameter.
+    Instead, handle tool loops within the state execution logic.
+    
     Example:
         class MyWorkflow(LLMStateMachine):
             # Define states
@@ -40,12 +43,16 @@ class LLMStateMachine(StateMachine):
             finish = processing.to(review)
             complete = review.to(done)
             
-            # Tool use loops
-            process_loop = processing.to.itself(on="tool_use")
+            # For tool use, handle within state method using run_llm_with_tools()
             
             def on_enter_processing(self, state_input: Any = None):
-                # State logic here
-                pass
+                # This method handles tool use internally via run_llm_with_tools()
+                return self.run_llm_with_tools(
+                    system_prompt="...",
+                    user_message="...",
+                    state_name="processing",
+                    max_iterations=10
+                )
     """
     
     def __init__(

@@ -546,7 +546,7 @@ class TestIntegration:
             mock_litellm_module.completion.return_value = mock_response
             
             # Create client
-            llm_client = create_llm_client("litellm", model="gpt-4")
+            llm_client = create_llm_client("litellm", model="gemini/gemini-pro")
             
             # Use in workflow
             workflow = TestWorkflow(llm_client=llm_client)
