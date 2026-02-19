@@ -281,7 +281,7 @@ llm = OpenAIAdapter(model="deepseek/deepseek-r1", base_url="https://openrouter.a
 llm = LiteLLMAdapter(model="anthropic/claude-sonnet-4-20250514")
 ```
 
-Build your own by implementing the `LLMAdapter` protocol — see `.claude/rules/adapters.md` or ask Claude Code.
+Build your own by implementing the `LLMAdapter` protocol — see `docs/claude/rules/adapters.md` or ask Claude Code.
 
 ### Persistence
 
@@ -306,7 +306,7 @@ See `examples/` for complete working examples:
 
 ## Claude Code Integration
 
-This repo includes a `CLAUDE.md` and `.claude/rules/` that teach Claude Code the framework's architecture. When you open this project in Claude Code, it automatically understands how to:
+This repo includes a `CLAUDE.md` and `docs/claude/rules/` that teach Claude Code the framework's architecture. When you open this project in Claude Code, it automatically understands how to:
 
 - Define workflows with states, transitions, and key results
 - Build custom LLM adapters
@@ -323,11 +323,11 @@ If you're using `fsm-agent-flow` as a dependency in your own project, add the fo
 
 TDD/OKR-driven agentic workflow framework. See the reference docs:
 
-@<URL_TO_GITHUB_PAGE>/CLAUDE.md
-@<URL_TO>/rules/adapters.md
-@<URL_TO>/rules/workflows.md
-@<URL_TO>/rules/validation.md
-@<URL_TO>/rules/tools.md
+@https://raw.githubusercontent.com/NewJerseyStyle/FSM-agent-flow/main/CLAUDE.md
+@https://NewJerseyStyle.github.io/FSM-agent-flow/claude/rules/adapters.md
+@https://NewJerseyStyle.github.io/FSM-agent-flow/claude/rules/workflows.md
+@https://NewJerseyStyle.github.io/FSM-agent-flow/claude/rules/validation.md
+@https://NewJerseyStyle.github.io/FSM-agent-flow/claude/rules/tools.md</pre>
 ```
 
 This gives Claude Code full knowledge of the framework's API, patterns, and conventions when working on your codebase.
