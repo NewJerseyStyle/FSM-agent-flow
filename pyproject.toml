@@ -5,73 +5,53 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "fsm-agent-flow"
 version = "0.2.0"
-description = "Developer-friendly workflow framework with AI agent integration and state management"
+description = "TDD/OKR-driven agentic workflow framework with verifiable state deliverables"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Yuan Xu", email = "dev.source@outlook.com"}
 ]
 keywords = [
     "llm",
-    "state-machine",
     "workflow",
     "agent",
     "fsm",
     "ai",
+    "tdd",
+    "okr",
     "openai",
     "litellm",
-    "smolagents"
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
-dependencies = [
-    "python-statemachine>=2.1.0",
-]
+dependencies = []
 
 [project.optional-dependencies]
 openai = [
     "openai>=1.0.0",
-    "tiktoken>=0.5.0",
 ]
 litellm = [
     "litellm>=1.0.0",
 ]
-smolagents = [
-    "smolagents>=0.1.0",
-]
-adk = [
-    "google-adk>=0.1.0",
-]
-mongodb = [
-    "pymongo>=4.0.0",
-]
 all = [
     "openai>=1.0.0",
-    "tiktoken>=0.5.0",
     "litellm>=1.0.0",
-    "smolagents>=0.1.0",
-    "google-adk>=0.1.0",
-    "pymongo>=4.0.0",
 ]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
-    "black>=23.0.0",
-    "isort>=5.12.0",
-    "mypy>=1.0.0",
     "ruff>=0.1.0",
 ]
 
@@ -80,23 +60,9 @@ Homepage = "https://github.com/NewJerseyStyle/FSM-agent-flow"
 Repository = "https://github.com/NewJerseyStyle/FSM-agent-flow"
 Issues = "https://github.com/NewJerseyStyle/FSM-agent-flow/issues"
 
-[tool.black]
-line-length = 100
-target-version = ['py39']
-
-[tool.isort]
-profile = "black"
-line_length = 100
-
-[tool.mypy]
-python_version = "3.9"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = false
-
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
