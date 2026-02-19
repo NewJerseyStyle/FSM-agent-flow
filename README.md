@@ -1,4 +1,6 @@
 # fsm-agent-flow
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/NewJerseyStyle/FSM-agent-flow)
+![PyPI - Version](https://img.shields.io/pypi/v/FSM-agent-flow)
 
 A TDD/OKR-driven workflow framework for LLM-powered applications. Each state declares an **objective** and **key results** that get validated before advancing — like running tests after writing code.
 
@@ -335,3 +337,4 @@ This gives Claude Code full knowledge of the framework's API, patterns, and conv
 ## License
 
 MIT
+
