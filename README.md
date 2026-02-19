@@ -1,475 +1,290 @@
-# LLM-FSM: Developer-Friendly Workflow Framework
+# fsm-agent-flow
 
-A Python library combining **Finite State Machines** with **LLM integration** for building intelligent, stateful workflows with context management, tool use, and refinement loops.
+A TDD/OKR-driven workflow framework for LLM-powered applications. Each state declares an **objective** and **key results** that get validated before advancing — like running tests after writing code.
 
-## Features
+## Why
 
-- 🤖 **LLM-Powered State Machines** - Integrate OpenAI, LiteLLM, smolagents, or Google ADK
-- 🧠 **10-Bucket Working Memory** - LLM-accessible working memory that persists across states
-- 🔄 **Refinement Loops** - Built-in validation and refinement with configurable retry limits
-- 🛠️ **Tool System** - State-scoped tools with sync/async/breaking execution modes
-- 💾 **Context Management** - Automatic history summarization and context composition
-- 📦 **Persistent Storage** - Save/load state to files or MongoDB
-- 🎯 **Start Anywhere** - Execute from any state with external memory
-- 🔌 **Extensible** - Support for Google ADK, SGLang, supercog-ai/agentic, ag2, and more
+Most LLM workflow frameworks either give you too little structure (raw prompt chains) or too much (rigid agent frameworks). fsm-agent-flow sits in the middle:
 
-## Installation
+- **States have acceptance criteria** — key results are checked before moving on
+- **Failed states retry with feedback** — the validator tells the LLM what went wrong
+- **The framework doesn't care what happens inside a state** — call an LLM, run a script, bridge to CrewAI, or nest another workflow
+- **No global singletons** — tools are scoped per state, contexts are explicit
+- **No heavy dependencies** — zero required runtime deps, bring your own LLM client
+
+## Install
 
 ```bash
-pip install llm-fsm
+pip install fsm-agent-flow
 
-# With OpenAI support
-pip install llm-fsm[openai]
-
-# With LiteLLM support  
-pip install llm-fsm[litellm]
-
-# With smolagents support
-pip install llm-fsm[smolagents]
-
-# With Google ADK support
-pip install llm-fsm[adk]
-
-# All integrations
-pip install llm-fsm[all]
+# With LLM adapters
+pip install fsm-agent-flow[openai]
+pip install fsm-agent-flow[litellm]
+pip install fsm-agent-flow[all]
 ```
 
 ## Quick Start
 
 ```python
-from statemachine import State
-from llm_fsm import LLMStateMachine, create_llm_client, register_tool, ToolType
+from fsm_agent_flow import Workflow, StateSpec, KeyResult, ExecutionContext
+from fsm_agent_flow.llm.openai import OpenAIAdapter
 
-# Define custom tools
-@register_tool(
-    description="Search for information",
-    state_scope="research"
-)
+# Tools are just functions
 def search(query: str) -> str:
-    return f"Search results for: {query}"
+    """Search the web."""
+    return f"Results for: {query}"
 
-# Define your workflow
-class MyWorkflow(LLMStateMachine):
-    # Define states
-    idle = State(initial=True)
-    research = State()
-    writing = State()
-    done = State(final=True)
-    
-    # Define transitions
-    start = idle.to(research)
-    write = research.to(writing)
-    finish = writing.to(done)
-    
-    # Tool use is handled internally within state methods
-    # via run_llm_with_tools() - no explicit self-transitions needed
-    
-    def on_enter_research(self, state_input=None):
-        """Research state implementation with tool use."""
-        context = self.memory.to_context()
-        
-        system_prompt = f"""You are a researcher.
-        
-{context}
+# States declare what they must accomplish
+research = StateSpec(
+    name="research",
+    objective="Gather information on the topic",
+    key_results=[
+        KeyResult("has_content", "At least 200 chars", check=lambda o: len(str(o)) > 200),
+        KeyResult("has_sources", "Cites sources"),  # LLM-validated (no check function)
+    ],
+    execute=lambda ctx: ctx.llm.run_with_tools(
+        system_prompt="Research the topic using the search tool.",
+        user_message=ctx.input,
+    ),
+    tools=[search],
+    max_retries=2,
+    is_initial=True,
+)
 
-Research topic: {state_input}
-Use the search tool to gather information."""
-        
-        # run_llm_with_tools handles the tool use loop internally
-        return self.run_llm_with_tools(
-            system_prompt=system_prompt,
-            user_message="Begin research",
-            state_name="research",
-            max_iterations=10  # Tools can be called multiple times
-        )
+writing = StateSpec(
+    name="writing",
+    objective="Write a structured report",
+    key_results=[
+        KeyResult("has_sections", "Has clear sections", check=lambda o: str(o).count("#") >= 2),
+    ],
+    execute=lambda ctx: ctx.llm.run_with_tools(
+        system_prompt="Write a report from this research.",
+        user_message=str(ctx.input),
+    ),
+    is_final=True,
+)
 
-# Create and run
-llm_client = create_llm_client("openai", model="gpt-4", api_key="...")
-workflow = MyWorkflow(llm_client=llm_client)
-
-workflow.start()
-result = workflow.execute_state("research", state_input="AI Safety")
+# One call to run the whole workflow
+llm = OpenAIAdapter(model="gpt-4o")
+wf = Workflow(
+    objective="Research and report",
+    states=[research, writing],
+    transitions={"research": "writing"},
+    llm=llm,
+    validator_llm=llm,
+)
+result = wf.run("quantum computing")
 ```
 
 ## Core Concepts
 
-### 1. States and Transitions
+### States with Objectives and Key Results
 
-States are defined using `python-statemachine`:
-
-```python
-class MyWorkflow(LLMStateMachine):
-    state1 = State(initial=True)
-    state2 = State()
-    state3 = State(final=True)
-    
-    transition1 = state1.to(state2)
-    transition2 = state2.to(state3)
-    loop = state2.to.itself(on="tool_use")  # Self-transition for tool use
-```
-
-### 2. Working Memory (10-Bucket System)
-
-LLM has access to 10 memory buckets that persist across state executions:
+Every state has an **objective** (what it does) and **key results** (how we verify it succeeded):
 
 ```python
-# LLM can use these tools:
-# - set_memory(bucket_index, content)
-# - append_memory(bucket_index, content)
-# - get_memory(bucket_index)
-# - clear_memory(bucket_index)
-# - view_all_memory()
-
-# In code:
-self.memory.working_memory.set(0, "Important information")
-self.memory.working_memory.append(1, "Additional context")
-```
-
-Non-empty buckets are automatically included in LLM context.
-
-### 3. Tool System
-
-Tools can be registered with different execution types:
-
-```python
-from llm_fsm import register_tool, ToolType
-
-# Sync tool (default)
-@register_tool(description="Calculate something", state_scope="processing")
-def calculate(expr: str) -> float:
-    return eval(expr)
-
-# Breaking tool (exits FSM, e.g., wait for human)
-@register_tool(
-    description="Wait for human input",
-    tool_type=ToolType.BREAKING
-)
-def wait_for_human(prompt: str) -> str:
-    return f"[WAITING]: {prompt}"
-
-# Async tool
-@register_tool(
-    description="Async operation",
-    tool_type=ToolType.ASYNC
-)
-async def async_operation(data: str) -> str:
-    await some_async_call()
-    return result
-```
-
-**Tool Execution:**
-- LLM can request multiple tools in one batch
-- All tools in batch execute before continuing
-- If ANY tool is "breaking" → FSM exits immediately
-- Developer must update memory at breaking point for resumption
-
-### 4. Validation and Refinement
-
-Built-in validation with automatic refinement:
-
-```python
-def on_enter_my_state(self, state_input=None):
-    def execute_with_refinement(refinement_advice=None):
-        # Your execution logic
-        prompt = f"Do the task. {refinement_advice or ''}"
-        return self.llm_client.chat([Message(role="user", content=prompt)])
-    
-    # Automatic validation and refinement
-    result = self.run_with_refinement(
-        state_name="my_state",
-        objective="Accomplish X with criteria Y",
-        execution_func=execute_with_refinement,
-        max_retries=3,
-        throw_on_failure=False  # Continue with sub-optimal if max retries
-    )
-    return result
-```
-
-### 5. History Summarization
-
-Automatic summarization on state exit (OODA loop):
-
-```python
-# Enabled by default
-workflow = MyWorkflow(
-    llm_client=llm_client,
-    enable_summarization=True  # Default
-)
-
-# Skip for specific transition
-workflow.execute_state("state_name", raw_transition=True)
-
-# Custom summarization prompt
-from llm_fsm import create_custom_summarizer
-
-summarizer = create_custom_summarizer(
-    llm_client=llm_client,
-    prompt_file="my_prompt.txt"
-)
-workflow.set_custom_summarizer(summarizer)
-```
-
-### 6. Breaking Execution & Resumption
-
-Handle async operations (human input, external events):
-
-```python
-from llm_fsm import ExecutionBreak
-
-try:
-    workflow.execute_state("review", state_input=data)
-except ExecutionBreak:
-    # Save state
-    workflow.memory.save_to_file("state.json")
-    print("Paused, waiting for human...")
-
-# Later, resume:
-memory = PersistentMemory.load_from_file("state.json")
-workflow = MyWorkflow(llm_client=llm_client, memory=memory)
-# Continue from same state with new context
-workflow.execute_state("review", state_input=updated_data)
-```
-
-### 7. Persistent Memory Structure
-
-```python
-memory = PersistentMemory()
-
-# Working memory (10 buckets)
-memory.working_memory.set(0, "content")
-
-# Background context
-memory.background.vision_mission = "Overall mission"
-memory.background.goals = "Current goals"
-memory.background.todo_list = "Distilled TODO from history"
-memory.background.custom_fields["key"] = "value"
-
-# History
-memory.history.add_entry(
-    state_name="research",
-    input_data={"topic": "AI"},
-    output_data={"summary": "..."}
-)
-
-# Save/Load
-memory.save_to_file("state.json")
-memory = PersistentMemory.load_from_file("state.json")
-
-# MongoDB
-memory.save_to_mongodb(collection, "workflow_123")
-memory = PersistentMemory.load_from_mongodb(collection, "workflow_123")
-```
-
-## LLM Integration
-
-### OpenAI
-
-```python
-from llm_fsm import create_llm_client
-
-llm_client = create_llm_client(
-    "openai",
-    model="gpt-4",
-    api_key="sk-...",
-    base_url="https://api.openai.com/v1"  # Optional
+StateSpec(
+    name="analyze",
+    objective="Analyze the dataset and identify trends",
+    key_results=[
+        # Programmatic check — runs as code
+        KeyResult("has_trends", "Identified at least 3 trends",
+                  check=lambda o: len(o.get("trends", [])) >= 3),
+        # LLM-validated — no check function, validator LLM evaluates
+        KeyResult("actionable", "Insights are actionable with recommendations"),
+    ],
+    execute=my_analyze_function,
+    max_retries=3,
 )
 ```
 
-### LiteLLM (Multiple Providers)
+### The TDD Validation Loop
+
+When a state executes, the framework:
+
+1. Calls `state.execute(ctx)` to produce output
+2. Runs all key result checks (programmatic first, then LLM)
+3. If any fail: retries with `ctx.feedback` explaining what went wrong
+4. If all pass: records the output and advances to the next state
+5. If retries exhausted: raises `MaxRetriesExceeded`
+
+### Tools Are Scoped Per State
+
+No global registry. Each state declares its own tools:
 
 ```python
-llm_client = create_llm_client(
-    "litellm",
-    model="gpt-4",  # or "claude-3-opus", "gemini-pro", etc.
-    api_key="..."
+research_state = StateSpec(
+    name="research",
+    tools=[search_web, fetch_paper],  # Only available in this state
+    ...
+)
+writing_state = StateSpec(
+    name="writing",
+    tools=[save_draft],  # Different tools here
+    ...
 )
 ```
 
-### smolagents
+Tools are plain Python functions. The framework auto-generates JSON Schema signatures (OpenAI/Anthropic compatible) from type hints:
 
 ```python
-from smolagents import HfApiModel, LiteLLMModel
-
-# Hugging Face model
-model = HfApiModel()
-llm_client = create_llm_client("smolagents", agent_or_model=model)
-
-# Or LiteLLM through smolagents
-model = LiteLLMModel(model_id="gpt-4")
-llm_client = create_llm_client("smolagents", agent_or_model=model)
+def search_web(query: str, max_results: int = 10) -> str:
+    """Search the web for information."""
+    ...
 ```
 
-### Google Agent Development Kit (ADK)
+### Shared Context
+
+States share data through `SharedContext` (explicit key-value store, not a flat blob):
 
 ```python
-from llm_fsm.adk_client import create_adk_agent_with_tools
+def step_one(ctx: ExecutionContext):
+    ctx.shared.set("findings", ["a", "b", "c"])
+    return "done"
 
-# Define tools as Python functions
-def my_tool(param: str) -> str:
-    """Tool description for ADK."""
-    return f"Result: {param}"
-
-# Create ADK agent with tools
-llm_client = create_adk_agent_with_tools(
-    model="gemini-2.0-flash",
-    name="my_agent",
-    instruction="Agent instructions...",
-    tools=[my_tool]
-)
-
-# Use ADKStateMixin for direct ADK integration
-class MyWorkflow(LLMStateMachine, ADKStateMixin):
-    def on_enter_state(self, state_input=None):
-        return self.run_with_adk(
-            query="Your query",
-            state_name="state"
-        )
+def step_two(ctx: ExecutionContext):
+    findings = ctx.shared.get("findings", [])
+    return f"Processing {len(findings)} findings"
 ```
 
-### Other Frameworks
+### Execute Functions
 
-Since states are just Python methods, you can integrate:
-
-- **Google ADK** - Full integration with ADK agents and tool orchestration (see example_google_adk.py)
-- **SGLang** - Use SGLang's structured generation in state methods
-- **supercog-ai/agentic** - Call agentic framework from state methods
-- **ag2** - Integrate AutoGen agents in states
-- **Custom** - Any Python-based LLM framework
-
-Example with custom framework:
+A state's `execute` function receives an `ExecutionContext` with everything it needs:
 
 ```python
-class MyWorkflow(LLMStateMachine):
-    def on_enter_my_state(self, state_input=None):
-        # Use any framework you want
-        import sglang as sgl
-        
-        context = self.memory.to_context()
-        result = sgl.gen("your prompt", context=context)
-        return result
+def my_state(ctx: ExecutionContext):
+    ctx.input       # Output from previous state
+    ctx.shared      # SharedContext (read/write)
+    ctx.history     # Previous states' outputs (read-only)
+    ctx.llm         # BoundLLM with this state's tools
+    ctx.retry_count # Current retry attempt
+    ctx.feedback    # Validator feedback from last failed attempt
 ```
 
-## Advanced Usage
-
-### Conditional Transitions
+Inside execute, you can do anything:
 
 ```python
-class MyWorkflow(LLMStateMachine):
-    state1 = State(initial=True)
-    state2 = State()
-    state3 = State()
-    
-    # Conditional transition
-    go_to_state2 = state1.to(state2, cond="should_go_to_state2")
-    go_to_state3 = state1.to(state3, cond="should_go_to_state3")
-    
-    def should_go_to_state2(self):
-        # Custom condition logic
-        return self._some_condition
-    
-    def should_go_to_state3(self):
-        return not self._some_condition
+# Option A: Use the BoundLLM tool-calling loop
+result = ctx.llm.run_with_tools(system_prompt="...", user_message="...")
+
+# Option B: Call the LLM directly (no tool loop)
+response = ctx.llm.chat([Message(role="user", content="...")])
+
+# Option C: Bridge to an external agent framework
+from crewai import Agent
+result = Agent(...).run(ctx.input)
+
+# Option D: Run arbitrary code
+result = my_analysis_pipeline(ctx.input)
+
+# Option E: Nest another workflow
+inner_wf = Workflow(...)
+result = inner_wf.run(ctx.input)
 ```
 
-### Custom Validation
+### Built-in OODA Agent
+
+For "LLM + tools" without wiring your own agent loop, use the built-in OODA agent:
 
 ```python
-class MyWorkflow(LLMStateMachine):
-    def validate_output(self, objective, output, validation_llm=None):
-        # Override validation logic
-        if custom_validation_logic(output):
-            return True, None
-        else:
-            return False, "Needs improvement in X"
+from fsm_agent_flow import run_ooda
+
+def investigate(ctx: ExecutionContext):
+    return run_ooda(ctx, task=f"Investigate: {ctx.input}",
+                    tools=[search, analyze], max_cycles=3)
 ```
 
-### State-Scoped Tools
+The OODA agent is itself a nested `Workflow` with 4 states (Observe, Orient, Decide, Act), dogfooding the framework.
+
+### Validators
+
+Three options for validation:
 
 ```python
-# Register tools for specific states
-@register_tool(description="Research tool", state_scope="research")
-def research_tool(query: str) -> str:
-    return do_research(query)
+# 1. RuleValidator (default) — only runs programmatic checks
+from fsm_agent_flow import RuleValidator
+wf = Workflow(..., validator=RuleValidator())
 
-@register_tool(description="Writing tool", state_scope="writing")
-def writing_tool(content: str) -> str:
-    return enhance_writing(content)
+# 2. LLMValidator — runs checks + asks LLM for KRs without check functions
+from fsm_agent_flow import LLMValidator
+wf = Workflow(..., validator=LLMValidator(llm))
 
-# Global tools (available everywhere)
-@register_tool(description="General purpose tool")
-def general_tool(input: str) -> str:
-    return process(input)
+# 3. Shorthand — pass validator_llm to auto-create LLMValidator
+wf = Workflow(..., validator_llm=cheap_llm)
+
+# 4. Custom — implement the Validator protocol
+class MyValidator:
+    def validate(self, state, output, context) -> ValidationResult:
+        ...
 ```
 
-## Design Principles
+### LLM Adapters
 
-### Stateless Execution
-
-State methods should be **stateless** - all state is in external memory:
+The framework ships with OpenAI and LiteLLM adapters:
 
 ```python
-# ❌ Bad: Relying on instance variables
-class BadWorkflow(LLMStateMachine):
-    def on_enter_state1(self, state_input=None):
-        self.temp_data = "something"  # Don't do this!
-        return self.process()
-    
-    def on_enter_state2(self, state_input=None):
-        return self.temp_data  # Not reliable!
+from fsm_agent_flow.llm.openai import OpenAIAdapter
+from fsm_agent_flow.llm.litellm import LiteLLMAdapter
 
-# ✅ Good: Using persistent memory
-class GoodWorkflow(LLMStateMachine):
-    def on_enter_state1(self, state_input=None):
-        self.memory.working_memory.set(0, "something")
-        return self.process()
-    
-    def on_enter_state2(self, state_input=None):
-        return self.memory.working_memory.get(0)
+# OpenAI (or any OpenAI-compatible API)
+llm = OpenAIAdapter(model="gpt-4o", api_key="sk-...")
+llm = OpenAIAdapter(model="deepseek/deepseek-r1", base_url="https://openrouter.ai/api/v1")
+
+# LiteLLM (any provider)
+llm = LiteLLMAdapter(model="anthropic/claude-sonnet-4-20250514")
 ```
 
-### Breaking Tool Design
+Build your own by implementing the `LLMAdapter` protocol — see `.claude/rules/adapters.md` or ask Claude Code.
 
-When using breaking tools, ensure memory is updated:
+### Persistence
+
+`WorkflowContext` is serializable for save/resume:
 
 ```python
-def on_enter_review(self, state_input=None):
-    # Before breaking, store all necessary context
-    self.memory.working_memory.set(5, f"Reviewing document: {doc_id}")
-    self.memory.working_memory.set(6, "Waiting for approval")
-    
-    try:
-        result = self.run_llm_with_tools(
-            system_prompt="Review and request feedback...",
-            user_message="Review this document",
-            state_name="review"
-        )
-    except ExecutionBreak:
-        # Memory is saved, safe to exit
-        raise
+# Save
+data = wf.context.to_dict()
+json.dump(data, open("checkpoint.json", "w"))
+
+# Resume
+data = json.load(open("checkpoint.json"))
+ctx = WorkflowContext.from_dict(data)
 ```
 
 ## Examples
 
-See `examples/` directory for complete examples:
-- `example_smolagents.py` - Research and writing workflow with smolagents
-- `example_google_adk.py` - Customer service workflow with Google ADK
-- `example_openai.py` - Customer support workflow with OpenAI
-- `example_nested.py` - Nested state machines (if supported)
+See `examples/` for complete working examples:
 
-## Contributing
+- **`research_workflow.py`** — Research + writing with tool calling and TDD validation
+- **`ooda_example.py`** — Using the built-in OODA agent inside workflow states
 
-Contributions welcome! Areas for contribution:
-- Additional LLM integrations
-- More example workflows
-- Enhanced tool system
-- Performance optimizations
+## Claude Code Integration
+
+This repo includes a `CLAUDE.md` and `.claude/rules/` that teach Claude Code the framework's architecture. When you open this project in Claude Code, it automatically understands how to:
+
+- Define workflows with states, transitions, and key results
+- Build custom LLM adapters
+- Write validation logic
+- Use the OODA agent
+- Debug common issues
+
+### Using with Claude Code in your own project
+
+If you're using `fsm-agent-flow` as a dependency in your own project, add the following to your project's `CLAUDE.md` so Claude Code understands the framework:
+
+```markdown
+# fsm-agent-flow
+
+TDD/OKR-driven agentic workflow framework. See the reference docs:
+
+@<URL_TO_GITHUB_PAGE>/CLAUDE.md
+@<URL_TO>/rules/adapters.md
+@<URL_TO>/rules/workflows.md
+@<URL_TO>/rules/validation.md
+@<URL_TO>/rules/tools.md
+```
+
+This gives Claude Code full knowledge of the framework's API, patterns, and conventions when working on your codebase.
 
 ## License
 
-MIT License
-
-## Acknowledgments
-
-- Built on [python-statemachine](https://github.com/fgmacedo/python-statemachine)
-- Inspired by OODA loops and agent frameworks
-- Integrates with [smolagents](https://github.com/huggingface/smolagents), [Google ADK](https://github.com/google/adk), [LiteLLM](https://github.com/BerriAI/litellm), and OpenAI
+MIT
