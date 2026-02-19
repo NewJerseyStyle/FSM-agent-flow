@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>fsm-agent-flow &mdash; Test-Driven Agentic Workflows</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0c;--bg2:#111115;--bg3:#18181e;
+  --fg:#c8c5c0;--fg2:#8a877f;--fg3:#5a5850;
+  --accent:#d4f541;--accent2:#b8d63a;
+  --red:#f05545;--blue:#5b9cf5;--amber:#f5c542;
+  --mono:'DM Mono',monospace;--serif:'Instrument Serif',Georgia,serif;--sans:'IBM Plex Sans',sans-serif;
+  --max:860px;
+}
+html{scroll-behavior:smooth;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:16px;line-height:1.65}
+body{overflow-x:hidden}
+::selection{background:var(--accent);color:var(--bg)}
+a{color:var(--accent);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .2s}
+a:hover{border-bottom-color:var(--accent)}
+
+/* ─── Layout ─── */
+.container{max-width:var(--max);margin:0 auto;padding:0 28px}
+section{padding:80px 0}
+section+section{border-top:1px solid #1e1e24}
+
+/* ─── Hero ─── */
+.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden;padding:60px 0}
+.hero::before{content:'';position:absolute;top:-40%;right:-20%;width:600px;height:600px;background:radial-gradient(circle,rgba(212,245,65,.06) 0%,transparent 70%);pointer-events:none}
+.hero-eyebrow{font-family:var(--mono);font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:20px;display:flex;align-items:center;gap:10px}
+.hero-eyebrow::before{content:'';width:28px;height:1px;background:var(--accent)}
+.hero h1{font-family:var(--serif);font-size:clamp(2.8rem,6vw,4.6rem);line-height:1.08;font-weight:400;color:#eae8e4;margin-bottom:24px;letter-spacing:-.02em}
+.hero h1 em{font-style:italic;color:var(--accent)}
+.hero-sub{font-size:18px;color:var(--fg2);max-width:560px;margin-bottom:40px}
+.hero-actions{display:flex;gap:14px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:6px;font-family:var(--mono);font-size:14px;font-weight:500;border:none;cursor:pointer;transition:all .2s}
+.btn-primary{background:var(--accent);color:var(--bg)}
+.btn-primary:hover{background:var(--accent2);border-bottom-color:transparent}
+.btn-ghost{background:transparent;color:var(--fg);border:1px solid #2a2a32}
+.btn-ghost:hover{border-color:var(--fg3);background:#14141a;border-bottom-style:solid}
+
+/* ─── Diagram ─── */
+.diagram-wrap{margin:48px 0;position:relative}
+.fsm-diagram{display:flex;align-items:center;justify-content:center;gap:0;flex-wrap:wrap;padding:32px 0}
+.fsm-node{position:relative;background:var(--bg3);border:1px solid #2a2a32;border-radius:10px;padding:18px 22px;min-width:160px;text-align:center;transition:border-color .3s,box-shadow .3s}
+.fsm-node:hover{border-color:var(--accent);box-shadow:0 0 24px rgba(212,245,65,.08)}
+.fsm-node.initial{border-color:#3a6a3a}
+.fsm-node.final{border-color:#6a3a3a}
+.fsm-node-label{font-family:var(--mono);font-size:14px;font-weight:500;color:#eae8e4;margin-bottom:4px}
+.fsm-node-obj{font-size:12px;color:var(--fg3)}
+.fsm-node-badge{position:absolute;top:-8px;right:-8px;background:var(--accent);color:var(--bg);font-family:var(--mono);font-size:9px;font-weight:500;padding:2px 7px;border-radius:8px;letter-spacing:.04em;text-transform:uppercase}
+.fsm-node-badge.end{background:var(--red)}
+.fsm-arrow{color:var(--fg3);font-size:22px;padding:0 6px;flex-shrink:0}
+.fsm-arrow-label{font-family:var(--mono);font-size:10px;color:var(--accent);display:block;margin-top:-2px}
+.fsm-branch{display:flex;flex-direction:column;align-items:center;gap:8px}
+.fsm-branch-row{display:flex;align-items:center;gap:0}
+
+/* ─── Steps ─── */
+.step{display:grid;grid-template-columns:48px 1fr;gap:0 24px;margin-bottom:0}
+.step+.step{margin-top:48px}
+.step-num{font-family:var(--mono);font-size:32px;font-weight:300;color:var(--fg3);line-height:1;grid-row:1/3}
+.step-title{font-family:var(--serif);font-size:clamp(1.5rem,3vw,2rem);color:#eae8e4;margin-bottom:8px;font-weight:400}
+.step-body{color:var(--fg2);font-size:15px}
+.step-body p+p{margin-top:12px}
+
+/* ─── Code Blocks ─── */
+.code-wrap{position:relative;margin:20px 0;border-radius:8px;background:#0e0e12;border:1px solid #1e1e24;overflow:hidden}
+.code-header{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:#131318;border-bottom:1px solid #1e1e24}
+.code-lang{font-family:var(--mono);font-size:11px;color:var(--fg3);letter-spacing:.06em;text-transform:uppercase}
+.code-copy{font-family:var(--mono);font-size:11px;color:var(--fg3);background:none;border:1px solid #2a2a32;border-radius:4px;padding:3px 10px;cursor:pointer;transition:all .2s}
+.code-copy:hover{color:var(--accent);border-color:var(--accent)}
+.code-copy.copied{color:var(--accent);border-color:var(--accent)}
+pre{padding:18px 20px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.7;color:var(--fg)}
+pre .kw{color:var(--blue)}
+pre .fn{color:var(--accent2)}
+pre .str{color:var(--amber)}
+pre .cmt{color:var(--fg3);font-style:italic}
+pre .num{color:var(--red)}
+
+/* ─── Cards ─── */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;margin:28px 0}
+.card{background:var(--bg3);border:1px solid #1e1e24;border-radius:8px;padding:22px;transition:border-color .2s}
+.card:hover{border-color:var(--fg3)}
+.card-icon{font-size:24px;margin-bottom:10px;display:block}
+.card h4{font-family:var(--mono);font-size:14px;color:#eae8e4;margin-bottom:6px}
+.card p{font-size:13px;color:var(--fg2);line-height:1.55}
+
+/* ─── Table ─── */
+.concept-table{width:100%;border-collapse:collapse;margin:24px 0;font-size:14px}
+.concept-table th{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--fg3);text-align:left;padding:10px 14px;border-bottom:1px solid #1e1e24}
+.concept-table td{padding:12px 14px;border-bottom:1px solid #121216;vertical-align:top}
+.concept-table td:first-child{font-family:var(--mono);color:var(--accent);white-space:nowrap;font-size:13px}
+.concept-table td:nth-child(2){color:var(--fg2)}
+.concept-table tr:hover td{background:#0f0f14}
+
+/* ─── Callout ─── */
+.callout{background:var(--bg3);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:16px 20px;margin:24px 0;font-size:14px;color:var(--fg2)}
+.callout strong{color:#eae8e4}
+
+/* ─── Node Editor Section ─── */
+.editor-features{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin:32px 0;align-items:start}
+.editor-features>div{display:flex;flex-direction:column;gap:16px}
+.editor-step{display:flex;gap:14px;align-items:flex-start}
+.editor-step-num{font-family:var(--mono);font-size:11px;color:var(--bg);background:var(--accent);width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.editor-step h5{font-family:var(--mono);font-size:13px;color:#eae8e4;margin-bottom:3px}
+.editor-step p{font-size:13px;color:var(--fg2);line-height:1.5}
+.editor-preview{background:var(--bg2);border:1px solid #1e1e24;border-radius:10px;overflow:hidden;position:relative}
+.editor-preview-bar{background:#131318;padding:6px 12px;display:flex;gap:6px;align-items:center;border-bottom:1px solid #1e1e24}
+.editor-preview-dot{width:8px;height:8px;border-radius:50%}
+.editor-preview-dot:nth-child(1){background:#f05545}
+.editor-preview-dot:nth-child(2){background:#f5c542}
+.editor-preview-dot:nth-child(3){background:#4ecf50}
+.editor-canvas{padding:28px;display:flex;align-items:center;justify-content:center;gap:16px;min-height:220px}
+.e-node{background:#1a1a2e;border:1.5px solid #2a2a4a;border-radius:8px;padding:12px 16px;min-width:110px;text-align:center;position:relative}
+.e-node.active{border-color:var(--accent);box-shadow:0 0 16px rgba(212,245,65,.1)}
+.e-node-name{font-family:var(--mono);font-size:12px;color:#eae8e4;margin-bottom:2px}
+.e-node-obj{font-size:10px;color:var(--fg3)}
+.e-port{width:8px;height:8px;border-radius:50%;background:var(--fg3);position:absolute}
+.e-port.in{left:-4px;top:50%;transform:translateY(-50%)}
+.e-port.out{right:-4px;top:50%;transform:translateY(-50%);background:var(--accent)}
+.e-wire{width:32px;height:2px;background:linear-gradient(90deg,var(--accent),var(--fg3));flex-shrink:0;border-radius:1px}
+.e-sidebar{position:absolute;right:0;top:0;bottom:0;width:160px;background:#16213e;border-left:1px solid #0f3460;padding:10px;font-size:10px;color:var(--fg2);display:flex;flex-direction:column;gap:6px}
+.e-sidebar-label{font-family:var(--mono);font-size:8px;color:var(--fg3);text-transform:uppercase;letter-spacing:.08em}
+.e-sidebar-val{font-family:var(--mono);font-size:10px;color:#eae8e4;background:#1a1a2e;border:1px solid #0f3460;border-radius:3px;padding:2px 6px}
+
+/* ─── Footer ─── */
+footer{padding:48px 0;border-top:1px solid #1e1e24;text-align:center;font-size:13px;color:var(--fg3)}
+footer a{color:var(--fg2)}
+
+/* ─── Animations ─── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.hero-eyebrow,.hero h1,.hero-sub,.hero-actions{animation:fadeUp .7s ease both}
+.hero h1{animation-delay:.1s}
+.hero-sub{animation-delay:.2s}
+.hero-actions{animation-delay:.3s}
+
+@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+.fsm-arrow{animation:pulse 2.5s ease-in-out infinite}
+.fsm-arrow:nth-child(2){animation-delay:.4s}
+.fsm-arrow:nth-child(4){animation-delay:.8s}
+
+@keyframes nodeGlow{0%,100%{box-shadow:0 0 0 rgba(212,245,65,0)}50%{box-shadow:0 0 20px rgba(212,245,65,.1)}}
+
+/* ─── Responsive ─── */
+@media(max-width:680px){
+  .editor-features{grid-template-columns:1fr}
+  .fsm-diagram{gap:8px}
+  section{padding:48px 0}
+  .hero{min-height:auto;padding:80px 0 48px}
+}
+</style>
+</head>
+<body>
+
+<!-- ████ HERO ████ -->
+<section class="hero">
+<div class="container">
+  <div class="hero-eyebrow">fsm-agent-flow v0.3.0</div>
+  <h1>Write LLM workflows<br>that <em>test themselves.</em></h1>
+  <p class="hero-sub">Every state declares what it must accomplish. The framework validates before advancing. Failed states retry with feedback. Like TDD for your agent pipeline.</p>
+  <div class="hero-actions">
+    <a href="#start" class="btn btn-primary">Start Building &darr;</a>
+    <a href="https://github.com/NewJerseyStyle/FSM-agent-flow" class="btn btn-ghost" target="_blank">GitHub &nearr;</a>
+    <a href="#editor" class="btn btn-ghost">Visual Editor &nearr;</a>
+  </div>
+
+  <div class="diagram-wrap">
+    <div class="fsm-diagram">
+      <div class="fsm-node initial">
+        <div class="fsm-node-badge">start</div>
+        <div class="fsm-node-label">research</div>
+        <div class="fsm-node-obj">Gather info + cite sources</div>
+      </div>
+      <div class="fsm-arrow">&rarr;<span class="fsm-arrow-label">pass</span></div>
+      <div class="fsm-node">
+        <div class="fsm-node-label">writing</div>
+        <div class="fsm-node-obj">Structured report w/ headings</div>
+      </div>
+      <div class="fsm-arrow">&rarr;<span class="fsm-arrow-label">pass</span></div>
+      <div class="fsm-node final">
+        <div class="fsm-node-badge end">end</div>
+        <div class="fsm-node-label">review</div>
+        <div class="fsm-node-obj">Quality check</div>
+      </div>
+    </div>
+    <div style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--fg3);margin-top:4px">
+      Each node validates its key results before the arrow fires. Failures retry with feedback.
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ████ WHY THIS EXISTS ████ -->
+<section>
+<div class="container">
+  <h2 style="font-family:var(--serif);font-size:clamp(1.6rem,3vw,2.2rem);color:#eae8e4;margin-bottom:24px">Why this approach works</h2>
+
+  <table class="concept-table">
+    <thead>
+      <tr><th>Concept</th><th>What it means</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>StateSpec</td><td>A node in your workflow. Has an objective, tools, an execute function, and acceptance criteria (key results).</td></tr>
+      <tr><td>KeyResult</td><td>A verifiable deliverable. Can be a programmatic check (<code>lambda</code>) or an LLM-evaluated description. The "test" in TDD.</td></tr>
+      <tr><td>Transition</td><td>How states connect. Static (<code>str</code>), conditional (<code>dict</code> with branches), or dynamic (<code>callable</code>). Supports loops and bidirectional flows.</td></tr>
+      <tr><td>BoundLLM</td><td>LLM adapter scoped to a state's tools. <code>ctx.llm.run_with_tools()</code> handles the full tool-call loop.</td></tr>
+      <tr><td>SharedContext</td><td>Key-value store shared across all states. No globals, no singletons.</td></tr>
+      <tr><td>Validator</td><td>Checks key results after execution. Rule-based (code), LLM-based (subjective), or custom protocol.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="card-grid">
+    <div class="card">
+      <span class="card-icon">&circlearrowright;</span>
+      <h4>Retry with Feedback</h4>
+      <p>When a state fails validation, it re-executes with <code>ctx.feedback</code> explaining exactly what went wrong. The LLM self-corrects.</p>
+    </div>
+    <div class="card">
+      <span class="card-icon">&DoubleLeftRightArrow;</span>
+      <h4>Bidirectional Flow</h4>
+      <p>States can branch, loop back, call each other. Return <code>{"_transition": "branch"}</code> to route conditionally at runtime.</p>
+    </div>
+    <div class="card">
+      <span class="card-icon">&emptyset;</span>
+      <h4>Zero Dependencies</h4>
+      <p>No required runtime deps. Bring your own LLM client. OpenAI and LiteLLM adapters ship as optional extras.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ████ STEP 1: INSTALL ████ -->
+<section id="start">
+<div class="container">
+  <div class="step">
+    <div class="step-num">01</div>
+    <div>
+      <h3 class="step-title">Install the framework</h3>
+      <div class="step-body">
+        <p>One command. Pick an LLM adapter or bring your own.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="code-wrap">
+    <div class="code-header"><span class="code-lang">bash</span><button class="code-copy" onclick="copyBlock(this)">Copy</button></div>
+<pre>pip install fsm-agent-flow[openai]</pre>
+  </div>
+
+  <div class="callout">
+    <strong>Using uv?</strong> &nbsp; <code style="color:var(--accent)">uv add fsm-agent-flow[openai]</code> works too. For LiteLLM: <code style="color:var(--accent)">pip install fsm-agent-flow[litellm]</code>
+  </div>
+</div>
+</section>
+
+<!-- ████ STEP 2: FIRST WORKFLOW ████ -->
+<section>
+<div class="container">
+  <div class="step">
+    <div class="step-num">02</div>
+    <div>
+      <h3 class="step-title">Build your first workflow</h3>
+      <div class="step-body">
+        <p>Two states. Research gathers info, writing produces a report. Each state declares what "done" looks like.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="code-wrap">
+    <div class="code-header"><span class="code-lang">python</span><button class="code-copy" onclick="copyBlock(this)">Copy</button></div>
+<pre><span class="kw">from</span> fsm_agent_flow <span class="kw">import</span> Workflow, StateSpec, KeyResult
+<span class="kw">from</span> fsm_agent_flow.llm.openai <span class="kw">import</span> OpenAIAdapter
+
+<span class="cmt"># Tools are plain functions &mdash; auto-converted to JSON Schema</span>
+<span class="kw">def</span> <span class="fn">search</span>(query: <span class="fn">str</span>) -> <span class="fn">str</span>:
+    <span class="str">"""Search the web for information."""</span>
+    <span class="kw">return</span> your_search_api(query)
+
+<span class="cmt"># Each state declares its acceptance criteria</span>
+research = StateSpec(
+    name=<span class="str">"research"</span>,
+    objective=<span class="str">"Gather information on the topic"</span>,
+    key_results=[
+        KeyResult(<span class="str">"length"</span>, <span class="str">"At least 200 chars"</span>,
+                  check=<span class="kw">lambda</span> o: <span class="fn">len</span>(<span class="fn">str</span>(o)) > <span class="num">200</span>),
+        KeyResult(<span class="str">"sourced"</span>, <span class="str">"Cites real sources"</span>),  <span class="cmt"># LLM-validated</span>
+    ],
+    execute=<span class="kw">lambda</span> ctx: ctx.llm.run_with_tools(
+        <span class="str">"Research the topic thoroughly."</span>, ctx.input),
+    tools=[search],
+    max_retries=<span class="num">2</span>,
+    is_initial=<span class="kw">True</span>,
+)
+
+writing = StateSpec(
+    name=<span class="str">"writing"</span>,
+    objective=<span class="str">"Write a structured report"</span>,
+    key_results=[
+        KeyResult(<span class="str">"sections"</span>, <span class="str">"Has headings"</span>,
+                  check=<span class="kw">lambda</span> o: <span class="fn">str</span>(o).count(<span class="str">"#"</span>) >= <span class="num">2</span>),
+    ],
+    execute=<span class="kw">lambda</span> ctx: ctx.llm.run_with_tools(
+        <span class="str">"Write a structured report."</span>, <span class="fn">str</span>(ctx.input)),
+    is_final=<span class="kw">True</span>,
+)
+
+<span class="cmt"># Wire it up and run</span>
+llm = OpenAIAdapter(model=<span class="str">"gpt-4o"</span>)
+result = Workflow(
+    objective=<span class="str">"Research and report"</span>,
+    states=[research, writing],
+    transitions={<span class="str">"research"</span>: <span class="str">"writing"</span>},
+    llm=llm, validator_llm=llm,
+).run(<span class="str">"quantum computing"</span>)
+
+<span class="fn">print</span>(result.history[-<span class="num">1</span>].output)</pre>
+  </div>
+
+  <div class="callout">
+    <strong>What happens:</strong> &nbsp;research executes &rarr; key results checked &rarr; if "length" fails, retries with feedback &rarr; once both pass, output flows to writing &rarr; same validation loop &rarr; done.
+  </div>
+</div>
+</section>
+
+<!-- ████ STEP 3: CONDITIONAL TRANSITIONS ████ -->
+<section>
+<div class="container">
+  <div class="step">
+    <div class="step-num">03</div>
+    <div>
+      <h3 class="step-title">Add branching &amp; loops</h3>
+      <div class="step-body">
+        <p>Real state machines go back and forth. Return <code>{"_transition": "label"}</code> from execute to pick a branch.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="diagram-wrap">
+    <div class="fsm-diagram" style="gap:4px">
+      <div class="fsm-node initial" style="min-width:130px">
+        <div class="fsm-node-badge">start</div>
+        <div class="fsm-node-label">check</div>
+        <div class="fsm-node-obj">Need weather?</div>
+      </div>
+      <div class="fsm-branch">
+        <div class="fsm-branch-row">
+          <div class="fsm-arrow">&rarr;<span class="fsm-arrow-label">need_weather</span></div>
+          <div class="fsm-node">
+            <div class="fsm-node-label">fetch</div>
+            <div class="fsm-node-obj">Get weather API</div>
+          </div>
+          <div class="fsm-arrow" style="transform:scaleX(-1)">&rarr;<span class="fsm-arrow-label" style="transform:scaleX(-1)">default</span></div>
+        </div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--fg3)">wrong_city &circlearrowright; self</div>
+      </div>
+      <div class="fsm-arrow">&rarr;<span class="fsm-arrow-label">ready</span></div>
+      <div class="fsm-node final" style="min-width:130px">
+        <div class="fsm-node-badge end">end</div>
+        <div class="fsm-node-label">respond</div>
+        <div class="fsm-node-obj">Print answer</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="code-wrap">
+    <div class="code-header"><span class="code-lang">python</span><button class="code-copy" onclick="copyBlock(this)">Copy</button></div>
+<pre>transitions = {
+    <span class="str">"check"</span>: {<span class="str">"need_weather"</span>: <span class="str">"fetch"</span>, <span class="str">"ready"</span>: <span class="str">"respond"</span>},
+    <span class="str">"fetch"</span>: {<span class="str">"wrong_city"</span>: <span class="str">"fetch"</span>, <span class="str">"default"</span>: <span class="str">"check"</span>},
+    <span class="str">"respond"</span>: <span class="kw">None</span>,
+}
+
+<span class="cmt"># In your execute function, pick the branch:</span>
+<span class="kw">def</span> <span class="fn">check</span>(ctx):
+    <span class="kw">if</span> ctx.shared.get(<span class="str">"weather"</span>):
+        <span class="kw">return</span> {<span class="str">"_transition"</span>: <span class="str">"ready"</span>, <span class="str">"answer"</span>: <span class="str">"Sunny!"</span>}
+    <span class="kw">return</span> {<span class="str">"_transition"</span>: <span class="str">"need_weather"</span>}</pre>
+  </div>
+</div>
+</section>
+
+<!-- ████ STEP 4: VISUAL EDITOR ████ -->
+<section id="editor">
+<div class="container">
+  <div class="step">
+    <div class="step-num">04</div>
+    <div>
+      <h3 class="step-title">Design workflows visually</h3>
+      <div class="step-body">
+        <p>Launch the node editor in your browser. Drag states, connect transitions, set key results. Export as Python or JSON.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="code-wrap">
+    <div class="code-header"><span class="code-lang">bash</span><button class="code-copy" onclick="copyBlock(this)">Copy</button></div>
+<pre>python -m fsm_agent_flow.editor</pre>
+  </div>
+
+  <div class="editor-features">
+    <div>
+      <div class="editor-step">
+        <div class="editor-step-num">1</div>
+        <div>
+          <h5>Add state nodes</h5>
+          <p>Click <strong>+ State</strong> in the toolbar. Each node becomes a <code>StateSpec</code>.</p>
+        </div>
+      </div>
+      <div class="editor-step">
+        <div class="editor-step-num">2</div>
+        <div>
+          <h5>Connect transitions</h5>
+          <p>Drag from an output port to an input port. For branching, add named conditions in the sidebar.</p>
+        </div>
+      </div>
+      <div class="editor-step">
+        <div class="editor-step-num">3</div>
+        <div>
+          <h5>Edit properties</h5>
+          <p>Double-click a node. Set objective, tools, key results, max retries. Toggle initial/final.</p>
+        </div>
+      </div>
+      <div class="editor-step">
+        <div class="editor-step-num">4</div>
+        <div>
+          <h5>Export</h5>
+          <p>Hit <strong>Export .py</strong> for runnable Python code, or <strong>Save</strong> for portable JSON. <code>Ctrl+S</code> works too.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="editor-preview">
+      <div class="editor-preview-bar">
+        <div class="editor-preview-dot"></div>
+        <div class="editor-preview-dot"></div>
+        <div class="editor-preview-dot"></div>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--fg3);margin-left:8px">fsm-agent-flow editor</span>
+      </div>
+      <div class="editor-canvas" style="padding-right:170px">
+        <div class="e-node active">
+          <div class="e-port in"></div>
+          <div class="e-node-name">research</div>
+          <div class="e-node-obj">Gather info</div>
+          <div class="e-port out"></div>
+        </div>
+        <div class="e-wire"></div>
+        <div class="e-node">
+          <div class="e-port in"></div>
+          <div class="e-node-name">writing</div>
+          <div class="e-node-obj">Write report</div>
+          <div class="e-port out"></div>
+        </div>
+        <div class="e-sidebar">
+          <div class="e-sidebar-label">Name</div>
+          <div class="e-sidebar-val">research</div>
+          <div class="e-sidebar-label">Objective</div>
+          <div class="e-sidebar-val">Gather info</div>
+          <div class="e-sidebar-label">Tools</div>
+          <div class="e-sidebar-val">search_web</div>
+          <div class="e-sidebar-label">Key Results</div>
+          <div class="e-sidebar-val">2 defined</div>
+          <div class="e-sidebar-label">Retries</div>
+          <div class="e-sidebar-val">3</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ████ STEP 5: CLAUDE CODE ████ -->
+<section id="claude">
+<div class="container">
+  <div class="step">
+    <div class="step-num">05</div>
+    <div>
+      <h3 class="step-title">Teach Claude Code your framework</h3>
+      <div class="step-body">
+        <p>Paste this into your project's <code>CLAUDE.md</code>. Claude Code will understand the full API and write workflows for you.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="code-wrap" id="claude-snippet">
+    <div class="code-header"><span class="code-lang">markdown &mdash; paste into your CLAUDE.md</span><button class="code-copy" onclick="copyBlock(this)">Copy</button></div>
+<pre id="claude-md-code"># fsm-agent-flow
+
+TDD/OKR-driven agentic workflow framework. See the reference docs:
+
+@https://raw.githubusercontent.com/NewJerseyStyle/FSM-agent-flow/main/CLAUDE.md
+@https://raw.githubusercontent.com/NewJerseyStyle/FSM-agent-flow/main/docs/claude/rules/adapters.md
+@https://raw.githubusercontent.com/NewJerseyStyle/FSM-agent-flow/main/docs/claude/rules/workflows.md
+@https://raw.githubusercontent.com/NewJerseyStyle/FSM-agent-flow/main/docs/claude/rules/validation.md
+@https://raw.githubusercontent.com/NewJerseyStyle/FSM-agent-flow/main/docs/claude/rules/tools.md</pre>
+  </div>
+
+  <div class="callout">
+    <strong>What this does:</strong> The <code>@</code> syntax tells Claude Code to fetch and read those files as context. It will learn the full architecture &mdash; state specs, transitions, tools, validation, adapters &mdash; and can write complete workflows, debug issues, and build custom adapters in your project.
+  </div>
+</div>
+</section>
+
+<!-- ████ CHEAT SHEET ████ -->
+<section>
+<div class="container">
+  <h2 style="font-family:var(--serif);font-size:clamp(1.6rem,3vw,2.2rem);color:#eae8e4;margin-bottom:24px">Quick reference</h2>
+
+  <table class="concept-table">
+    <thead>
+      <tr><th>Pattern</th><th>Code</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>LLM + tools loop</td><td><code>ctx.llm.run_with_tools(system, user_msg)</code></td></tr>
+      <tr><td>Single LLM call</td><td><code>ctx.llm.chat([Message(role="user", content="...")])</code></td></tr>
+      <tr><td>Share data</td><td><code>ctx.shared.set("key", val)</code> / <code>ctx.shared.get("key")</code></td></tr>
+      <tr><td>Conditional route</td><td><code>return {"_transition": "branch_name", ...}</code></td></tr>
+      <tr><td>Nested OODA agent</td><td><code>run_ooda(ctx, task="...", tools=[...], max_cycles=3)</code></td></tr>
+      <tr><td>Retry feedback</td><td>Check <code>ctx.feedback</code> &mdash; it explains why the last attempt failed</td></tr>
+      <tr><td>Save workflow state</td><td><code>wf.context.to_dict()</code> / <code>WorkflowContext.from_dict(d)</code></td></tr>
+      <tr><td>Visual editor</td><td><code>python -m fsm_agent_flow.editor</code></td></tr>
+      <tr><td>JSON roundtrip</td><td><code>workflow_to_json(wf)</code> / <code>workflow_from_json(data, llm=...)</code></td></tr>
+      <tr><td>Generate Python</td><td><code>workflow_to_python(json_data)</code></td></tr>
+    </tbody>
+  </table>
+</div>
+</section>
+
+<!-- ████ LINKS ████ -->
+<section>
+<div class="container" style="text-align:center">
+  <h2 style="font-family:var(--serif);font-size:clamp(1.6rem,3vw,2.2rem);color:#eae8e4;margin-bottom:12px">Start shipping</h2>
+  <p style="color:var(--fg2);margin-bottom:32px;max-width:420px;margin-left:auto;margin-right:auto">Read the README, browse the examples, or just <code>pip install</code> and go.</p>
+  <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
+    <a href="https://github.com/NewJerseyStyle/FSM-agent-flow" class="btn btn-primary" target="_blank">GitHub Repo &nearr;</a>
+    <a href="https://github.com/NewJerseyStyle/FSM-agent-flow/blob/main/README.md" class="btn btn-ghost" target="_blank">README &nearr;</a>
+    <a href="https://github.com/NewJerseyStyle/FSM-agent-flow/tree/main/examples" class="btn btn-ghost" target="_blank">Examples &nearr;</a>
+  </div>
+</div>
+</section>
+
+<footer>
+<div class="container">
+  <p>fsm-agent-flow &mdash; MIT License &mdash; <a href="https://github.com/NewJerseyStyle/FSM-agent-flow">github.com/NewJerseyStyle/FSM-agent-flow</a></p>
+</div>
+</footer>
+
+<script>
+function copyBlock(btn){
+  const pre = btn.closest('.code-wrap').querySelector('pre');
+  const text = pre.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// Intersection Observer for fade-in on scroll
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.style.animation = 'fadeUp .6s ease both';
+      observer.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.15 });
+document.querySelectorAll('.step, .card-grid, .code-wrap, .editor-features, .concept-table, .diagram-wrap').forEach(el => {
+  el.style.opacity = '0';
+  observer.observe(el);
+});
+</script>
+</body>
+</html>
