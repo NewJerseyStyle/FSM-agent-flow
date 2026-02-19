@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>fsm-agent-flow Editor</title>
+    <link rel="stylesheet" href="/static/litegraph.css">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="toolbar">
+        <div class="toolbar-group">
+            <span class="toolbar-brand">fsm-agent-flow</span>
+            <button id="btn-new" title="New workflow">New</button>
+            <button id="btn-open" title="Open workflow JSON">Open</button>
+            <button id="btn-save" title="Save workflow JSON">Save</button>
+        </div>
+        <div class="toolbar-group">
+            <button id="btn-add-state" title="Add a new state node">+ State</button>
+            <button id="btn-auto-layout" title="Auto-arrange nodes">Layout</button>
+        </div>
+        <div class="toolbar-group">
+            <button id="btn-validate" title="Validate workflow">Validate</button>
+            <button id="btn-export" title="Export as Python file">Export .py</button>
+        </div>
+        <div class="toolbar-group">
+            <select id="template-select">
+                <option value="">Load template...</option>
+            </select>
+        </div>
+        <div class="toolbar-right">
+            <span id="status-msg"></span>
+        </div>
+    </div>
+
+    <div id="main-container">
+        <canvas id="graph-canvas"></canvas>
+
+        <div id="sidebar" class="hidden">
+            <div id="sidebar-header">
+                <h3 id="sidebar-title">State Properties</h3>
+                <button id="sidebar-close">&times;</button>
+            </div>
+            <div id="sidebar-content">
+                <div class="prop-group">
+                    <label>Name</label>
+                    <input type="text" id="prop-name" placeholder="state_name">
+                </div>
+                <div class="prop-group">
+                    <label>Objective</label>
+                    <textarea id="prop-objective" rows="2" placeholder="What this state accomplishes"></textarea>
+                </div>
+                <div class="prop-group">
+                    <label>Max Retries</label>
+                    <input type="number" id="prop-retries" value="3" min="0" max="20">
+                </div>
+                <div class="prop-group">
+                    <label>
+                        <input type="checkbox" id="prop-initial"> Initial State
+                    </label>
+                </div>
+                <div class="prop-group">
+                    <label>
+                        <input type="checkbox" id="prop-final"> Final State
+                    </label>
+                </div>
+                <div class="prop-group">
+                    <label>Execute Module <span class="hint">(optional dotted path)</span></label>
+                    <input type="text" id="prop-execute" placeholder="my_app.states.do_research">
+                </div>
+                <div class="prop-group">
+                    <label>Tools <span class="hint">(comma-separated names)</span></label>
+                    <input type="text" id="prop-tools" placeholder="search_web, fetch_page">
+                </div>
+
+                <div class="prop-group">
+                    <label>Key Results</label>
+                    <div id="kr-list"></div>
+                    <button id="btn-add-kr" class="btn-small">+ Add Key Result</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-overlay" class="hidden">
+        <div id="modal">
+            <div id="modal-header">
+                <h3 id="modal-title"></h3>
+                <button id="modal-close">&times;</button>
+            </div>
+            <div id="modal-body"></div>
+            <div id="modal-footer">
+                <button id="modal-cancel">Cancel</button>
+                <button id="modal-ok">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script src="/static/litegraph.js"></script>
+    <script src="/static/editor.js"></script>
+</body>
+</html>

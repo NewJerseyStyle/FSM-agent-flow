@@ -15,6 +15,12 @@ from .ooda import create_ooda_agent, run_ooda
 from .state import KeyResult, StateSpec
 from .tools import ToolRegistry, ToolSpec
 from .validation import LLMValidator, RuleValidator, ValidationResult, Validator
+from .schema import (
+    validate_workflow_json,
+    workflow_from_json,
+    workflow_to_json,
+    workflow_to_python,
+)
 from .workflow import BoundLLM, Workflow
 
 __all__ = [
@@ -45,6 +51,11 @@ __all__ = [
     # OODA agent
     "create_ooda_agent",
     "run_ooda",
+    # Schema / JSON interchange
+    "workflow_to_json",
+    "workflow_from_json",
+    "workflow_to_python",
+    "validate_workflow_json",
     # Errors
     "ExecutionBreak",
     "MaxRetriesExceeded",

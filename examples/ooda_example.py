@@ -55,7 +55,9 @@ def summarize_findings(ctx: ExecutionContext) -> str:
 # -- Workflow --
 
 def build_investigation_workflow():
-    llm = OpenAIAdapter(model="gpt-4o")
+    llm = OpenAIAdapter(model="deepseek/deepseek-r1-0528:free",
+                        api_key="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",
+                        base_url="https://openrouter.ai/api/v1")
 
     investigate = StateSpec(
         name="investigate",
