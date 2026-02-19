@@ -39,7 +39,67 @@ transitions = {
 }
 ```
 
-Transitions are a simple dict: `{current_state: next_state}`. Set `next_state` to `None` or mark the state `is_final=True` to end the workflow.
+Transitions are a dict: `{current_state: next_state}`. Set `next_state` to `None` or mark the state `is_final=True` to end the workflow.
+
+## Conditional & Bidirectional Transitions
+
+Transitions support three forms:
+
+### Static (linear)
+
+```python
+transitions = {"fetch": "process", "process": None}
+```
+
+### Conditional (branching / bidirectional)
+
+Use a `dict` as the transition value. Keys are condition labels, values are target states:
+
+```python
+transitions = {
+    "check_city": {"need_weather": "get_weather", "ready": "print_result"},
+    "get_weather": {"wrong_city": "get_weather", "default": "check_city"},
+    "print_result": None,
+}
+```
+
+The framework resolves which branch to take by examining the execute function's output:
+
+1. If output is a `dict` with `"_transition"` key → use its value as the lookup key
+2. If output is a `str` matching a key in the transition dict → use it directly
+3. Fall back to `"default"` key
+4. If nothing matches → raise `WorkflowError`
+
+```python
+def check_city(ctx: ExecutionContext):
+    weather = ctx.shared.get("weather")
+    if weather and weather["city"] == "Tokyo":
+        return {"_transition": "ready", "report": weather}
+    return {"_transition": "need_weather"}
+
+def get_weather(ctx: ExecutionContext):
+    data = call_weather_api(ctx.shared.get("target_city"))
+    if data["city"] != ctx.shared.get("target_city"):
+        return {"_transition": "wrong_city"}  # Loop back to self
+    ctx.shared.set("weather", data)
+    return {"_transition": "default"}  # Return to check_city
+```
+
+This enables bidirectional flows (state A calls state B, B returns to A), retry loops within the graph, and multi-way branching.
+
+### Dynamic (callable)
+
+Use a function that receives the output and returns the next state name (or `None` to finish):
+
+```python
+transitions = {
+    "decide": lambda output: "approve" if output.get("score") > 0.8 else "reject",
+    "approve": None,
+    "reject": None,
+}
+```
+
+Note: callable transitions are not JSON-serializable (they only work in Python code, not in the visual editor's JSON format).
 
 ## State Execute Functions
 
