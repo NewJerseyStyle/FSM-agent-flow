@@ -209,6 +209,167 @@ class TestBoundLLM:
         assert result == "Final answer"
 
 
+class TestConditionalTransitions:
+    """Tests for conditional (dict) transition resolution."""
+
+    def _make_workflow(self, transitions, execute_fns):
+        states = []
+        for i, (name, fn) in enumerate(execute_fns.items()):
+            states.append(StateSpec(
+                name=name,
+                objective=f"do {name}",
+                execute=fn,
+                is_initial=(i == 0),
+                is_final=(name in ("respond", "output", "approve", "reject")),
+            ))
+        return Workflow(
+            objective="test conditional",
+            states=states,
+            transitions=transitions,
+            llm=MockLLM(),
+        )
+
+    def test_dict_transition_with_transition_key(self):
+        """Output dict with _transition key selects the branch."""
+        def check(ctx):
+            return {"_transition": "ready", "data": "ok"}
+
+        def respond(ctx):
+            return ctx.input
+
+        wf = self._make_workflow(
+            transitions={"check": {"need_data": "fetch", "ready": "respond"}, "respond": None},
+            execute_fns={"check": check, "respond": respond},
+        )
+        result = wf.run()
+        assert result.history[0].output == {"_transition": "ready", "data": "ok"}
+        assert result.history[1].output == {"_transition": "ready", "data": "ok"}
+
+    def test_dict_transition_with_string_output(self):
+        """String output matching a key selects that branch."""
+        def check(ctx):
+            return "need_data"
+
+        def fetch(ctx):
+            return "fetched"
+
+        wf = self._make_workflow(
+            transitions={
+                "check": {"need_data": "fetch", "ready": "respond", "default": "respond"},
+                "fetch": None,
+            },
+            execute_fns={"check": check, "fetch": fetch},
+        )
+        result = wf.run()
+        assert result.history[0].output == "need_data"
+        assert result.history[1].output == "fetched"
+
+    def test_dict_transition_default_fallback(self):
+        """Falls back to 'default' when no key matches."""
+        def check(ctx):
+            return 42  # Not a dict with _transition, not a string key
+
+        def respond(ctx):
+            return "done"
+
+        wf = self._make_workflow(
+            transitions={"check": {"need_data": "fetch", "default": "respond"}, "respond": None},
+            execute_fns={"check": check, "respond": respond},
+        )
+        result = wf.run()
+        assert result.history[1].output == "done"
+
+    def test_dict_transition_no_match_raises(self):
+        """Raises WorkflowError when no key matches and no default."""
+        def check(ctx):
+            return 42
+
+        wf = self._make_workflow(
+            transitions={"check": {"need_data": "fetch"}, "output": None},
+            execute_fns={"check": check, "output": lambda ctx: "x"},
+        )
+        with pytest.raises(WorkflowError, match="no matching transition"):
+            wf.run()
+
+    def test_bidirectional_transition(self):
+        """States can loop back: fetch → check → fetch → check → respond."""
+        call_count = {"n": 0}
+
+        def check(ctx):
+            call_count["n"] += 1
+            if call_count["n"] < 3:
+                return {"_transition": "need_data"}
+            return {"_transition": "ready"}
+
+        def fetch(ctx):
+            return {"_transition": "default"}
+
+        def respond(ctx):
+            return f"done after {call_count['n']} checks"
+
+        wf = self._make_workflow(
+            transitions={
+                "check": {"need_data": "fetch", "ready": "respond"},
+                "fetch": {"default": "check"},
+                "respond": None,
+            },
+            execute_fns={"check": check, "fetch": fetch, "respond": respond},
+        )
+        result = wf.run()
+        assert call_count["n"] == 3
+        assert "done after 3" in result.history[-1].output
+
+
+class TestDynamicTransitions:
+    """Tests for dynamic (callable) transition resolution."""
+
+    def test_callable_transition(self):
+        def decide(ctx):
+            return {"score": 0.9}
+
+        def approve(ctx):
+            return "approved"
+
+        def reject(ctx):
+            return "rejected"
+
+        states = [
+            StateSpec(name="decide", objective="decide", execute=decide, is_initial=True),
+            StateSpec(name="approve", objective="approve", execute=approve, is_final=True),
+            StateSpec(name="reject", objective="reject", execute=reject, is_final=True),
+        ]
+        wf = Workflow(
+            objective="test",
+            states=states,
+            transitions={
+                "decide": lambda output: "approve" if output.get("score", 0) > 0.8 else "reject",
+                "approve": None,
+                "reject": None,
+            },
+            llm=MockLLM(),
+        )
+        result = wf.run()
+        assert result.history[1].output == "approved"
+
+    def test_callable_transition_returns_none(self):
+        """Callable returning None ends the workflow."""
+        def decide(ctx):
+            return "final"
+
+        states = [
+            StateSpec(name="decide", objective="decide", execute=decide, is_initial=True),
+        ]
+        wf = Workflow(
+            objective="test",
+            states=states,
+            transitions={"decide": lambda output: None},
+            llm=MockLLM(),
+        )
+        result = wf.run()
+        assert wf.is_finished
+        assert result.history[0].output == "final"
+
+
 class TestWorkflowContext:
     def test_serialization_roundtrip(self):
         from fsm_agent_flow.context import WorkflowContext, SharedContext, StateOutput
