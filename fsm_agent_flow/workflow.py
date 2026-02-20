@@ -110,7 +110,7 @@ class Workflow:
         self,
         objective: str,
         states: list[StateSpec],
-        transitions: dict[str, str | None],
+        transitions: dict[str, Any],
         llm: LLMAdapter,
         validator: Validator | None = None,
         validator_llm: LLMAdapter | None = None,
@@ -217,6 +217,48 @@ class Workflow:
         # Exhausted retries
         raise MaxRetriesExceeded(state.name, state.max_retries, feedback)
 
+    def _resolve_transition(self, state_name: str, output: Any) -> str | None:
+        """Resolve the next state from a transition definition.
+
+        Supports three forms:
+        - ``str | None``: static transition
+        - ``dict``: conditional — resolved via output's ``_transition`` key,
+          string output matching a key, or ``"default"`` fallback
+        - ``callable``: dynamic — called with output, returns state name or None
+        """
+        transition = self._transitions.get(state_name)
+
+        # Static / terminal
+        if transition is None or isinstance(transition, str):
+            return transition
+
+        # Dynamic (callable)
+        if callable(transition):
+            result = transition(output)
+            return result
+
+        # Conditional (dict)
+        if isinstance(transition, dict):
+            # 1. Dict output with _transition key
+            if isinstance(output, dict) and "_transition" in output:
+                key = output["_transition"]
+                if key in transition:
+                    return transition[key]
+            # 2. String output matching a key
+            elif isinstance(output, str) and output in transition:
+                return transition[output]
+            # 3. Default fallback
+            if "default" in transition:
+                return transition["default"]
+            raise WorkflowError(
+                f"State '{state_name}': no matching transition for output "
+                f"{output!r} and no 'default' key"
+            )
+
+        raise WorkflowError(
+            f"Invalid transition type for state '{state_name}': {type(transition)}"
+        )
+
     def _record_and_advance(
         self, state: StateSpec, output: Any, result: ValidationResult
     ) -> None:
@@ -233,7 +275,7 @@ class Workflow:
             self._finished = True
             return
 
-        next_state = self._transitions.get(state.name)
+        next_state = self._resolve_transition(state.name, output)
         if next_state is None:
             self._finished = True
         else:

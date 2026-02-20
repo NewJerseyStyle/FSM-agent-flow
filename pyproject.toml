@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fsm-agent-flow"
-version = "0.3.0"
+version = "0.3.1"
 description = "TDD/OKR-driven agentic workflow framework with verifiable state deliverables"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -69,3 +69,8 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
