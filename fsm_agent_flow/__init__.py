@@ -5,10 +5,10 @@ A lightweight FSM engine where each state has verifiable deliverables
 after writing code.
 """
 
-__version__ = "2.0.0"
+__version__ = "0.3.2"
 
 from .context import ExecutionContext, SharedContext, StateOutput, WorkflowContext
-from .errors import ExecutionBreak, MaxRetriesExceeded, WorkflowError
+from .errors import ExecutionBreak, MaxRetriesExceeded, WaitForInput, WorkflowError
 from .llm.adapter import LLMAdapter, LLMResponse, Message
 from .llm.adapter import ToolCall as LLMToolCall
 from .ooda import create_ooda_agent, run_ooda
@@ -59,5 +59,6 @@ __all__ = [
     # Errors
     "ExecutionBreak",
     "MaxRetriesExceeded",
+    "WaitForInput",
     "WorkflowError",
 ]
