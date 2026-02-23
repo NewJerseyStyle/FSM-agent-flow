@@ -6,7 +6,7 @@ import inspect
 from dataclasses import dataclass
 from typing import Any, Callable, get_type_hints
 
-from .errors import ExecutionBreak
+from .errors import ExecutionBreak, WaitForInput
 
 # Python type -> JSON Schema type mapping
 _TYPE_MAP: dict[type, str] = {
@@ -62,13 +62,23 @@ def _extract_description(func: Callable) -> str:
 
 @dataclass
 class ToolSpec:
-    """A tool definition with JSON Schema parameters (OpenAI/Anthropic compatible)."""
+    """A tool definition with JSON Schema parameters (OpenAI/Anthropic compatible).
+
+    Attributes:
+        name: Tool name.
+        description: Tool description shown to LLM.
+        parameters: JSON Schema parameters object.
+        func: The callable to execute.
+        is_breaking: If True, raises ExecutionBreak after execution (pauses workflow).
+        is_waiting: If True, raises WaitForInput after execution (waits for user input).
+    """
 
     name: str
     description: str
     parameters: dict[str, Any]
     func: Callable
     is_breaking: bool = False
+    is_waiting: bool = False
 
     @classmethod
     def from_callable(
@@ -78,6 +88,7 @@ class ToolSpec:
         name: str | None = None,
         description: str | None = None,
         is_breaking: bool = False,
+        is_waiting: bool = False,
     ) -> ToolSpec:
         """Create a ToolSpec by inspecting a callable's signature."""
         return cls(
@@ -86,6 +97,7 @@ class ToolSpec:
             parameters=_build_parameters_schema(func),
             func=func,
             is_breaking=is_breaking,
+            is_waiting=is_waiting,
         )
 
     def to_openai_schema(self) -> dict[str, Any]:
@@ -100,10 +112,17 @@ class ToolSpec:
         }
 
     def execute(self, arguments: dict[str, Any]) -> Any:
-        """Execute the tool with the given arguments."""
+        """Execute the tool with the given arguments.
+
+        Raises:
+            ExecutionBreak: If is_breaking=True, pauses workflow for system events.
+            WaitForInput: If is_waiting=True, pauses workflow for user input.
+        """
         result = self.func(**arguments)
         if self.is_breaking:
             raise ExecutionBreak(self.name, result)
+        if self.is_waiting:
+            raise WaitForInput(self.name, result)
         return result
 
 

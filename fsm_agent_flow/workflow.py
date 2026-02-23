@@ -7,7 +7,7 @@ import logging
 from typing import Any
 
 from .context import ExecutionContext, SharedContext, StateOutput, WorkflowContext
-from .errors import ExecutionBreak, MaxRetriesExceeded, WorkflowError
+from .errors import ExecutionBreak, MaxRetriesExceeded, WaitForInput, WorkflowError
 from .llm.adapter import LLMAdapter, LLMResponse, Message, ToolCall
 from .state import StateSpec
 from .tools import ToolRegistry, ToolSpec
@@ -78,6 +78,8 @@ class BoundLLM:
                         )
                     )
                 except ExecutionBreak:
+                    raise
+                except WaitForInput:
                     raise
                 except Exception as e:
                     messages.append(
