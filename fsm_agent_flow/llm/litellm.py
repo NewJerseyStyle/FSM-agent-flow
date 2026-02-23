@@ -10,15 +10,23 @@ from .adapter import LLMResponse, Message, ToolCall
 
 
 class LiteLLMAdapter:
-    """Adapter using LiteLLM for multi-provider support."""
+    """Adapter using LiteLLM for multi-provider support.
+    
+    Args:
+        model: Model string with provider prefix (e.g., "gemini/gemini-pro-latest")
+        track_cost: If True, accumulates cost in .turn_cost attribute (resets on each chat call)
+        **kwargs: Additional kwargs passed to litellm.completion()
+    """
 
-    def __init__(self, model: str = "gpt-4o", **kwargs):
+    def __init__(self, model: str = "gpt-4o", *, track_cost: bool = False, **kwargs):
         try:
             import litellm  # noqa: F401
         except ImportError:
             raise ImportError("Install litellm: pip install 'fsm-agent-flow[litellm]'")
         self.model = model
         self._extra_kwargs = kwargs
+        self._track_cost = track_cost
+        self.turn_cost: float = 0.0
 
     def format_tools(self, tools: list[ToolSpec]) -> list[dict[str, Any]]:
         return [t.to_openai_schema() for t in tools]
@@ -47,6 +55,10 @@ class LiteLLMAdapter:
 
         response = litellm.completion(**kwargs)
         choice = response.choices[0]
+
+        # Track cost using LiteLLM's built-in cost calculation
+        if self._track_cost:
+            self.turn_cost = litellm.completion_cost(response)
 
         tool_calls: list[ToolCall] = []
         if choice.message.tool_calls:
