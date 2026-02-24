@@ -28,6 +28,10 @@ class LiteLLMAdapter:
         self._track_cost = track_cost
         self.turn_cost: float = 0.0
 
+    def reset_turn(self) -> None:
+        """Reset per-turn cost accumulator."""
+        self.turn_cost = 0.0
+
     def format_tools(self, tools: list[ToolSpec]) -> list[dict[str, Any]]:
         return [t.to_openai_schema() for t in tools]
 
@@ -46,6 +50,10 @@ class LiteLLMAdapter:
             "model": self.model,
             "messages": msgs,
             "temperature": temperature,
+            # Enable thinking mode for Gemini to get thought_signature in tool calls
+            # LiteLLM auto-extracts thought_signature into provider_specific_fields
+            # and auto-injects it back when replaying assistant messages with tool_calls
+            "reasoning_effort": "low",
             **self._extra_kwargs,
         }
         if max_tokens is not None:
@@ -56,18 +64,21 @@ class LiteLLMAdapter:
         response = litellm.completion(**kwargs)
         choice = response.choices[0]
 
-        # Track cost using LiteLLM's built-in cost calculation
+        # Track cost using LiteLLM's built-in cost calculation (accumulate per turn)
         if self._track_cost:
-            self.turn_cost = litellm.completion_cost(response)
+            self.turn_cost += litellm.completion_cost(response)
 
         tool_calls: list[ToolCall] = []
         if choice.message.tool_calls:
             for tc in choice.message.tool_calls:
+                # Extract provider_specific_fields (contains thought_signature for Gemini)
+                psf = getattr(tc, 'provider_specific_fields', {}) or {}
                 tool_calls.append(
                     ToolCall(
                         id=tc.id,
                         name=tc.function.name,
                         arguments=json.loads(tc.function.arguments),
+                        provider_specific_fields=psf,
                     )
                 )
 
@@ -92,14 +103,19 @@ def _convert_message(m: Message) -> dict[str, Any]:
     if m.content is not None:
         msg["content"] = m.content
     if m.tool_calls:
-        msg["tool_calls"] = [
-            {
+        tool_calls_converted = []
+        for tc in m.tool_calls:
+            tc_dict = {
                 "id": tc.id,
                 "type": "function",
                 "function": {"name": tc.name, "arguments": json.dumps(tc.arguments)},
             }
-            for tc in m.tool_calls
-        ]
+            # Preserve provider_specific_fields (contains thought_signature for Gemini)
+            # LiteLLM stores thought_signature here and auto-injects it when sending to Gemini
+            if hasattr(tc, 'provider_specific_fields') and tc.provider_specific_fields:
+                tc_dict["provider_specific_fields"] = tc.provider_specific_fields
+            tool_calls_converted.append(tc_dict)
+        msg["tool_calls"] = tool_calls_converted
     if m.tool_call_id is not None:
         msg["tool_call_id"] = m.tool_call_id
     if m.name is not None:

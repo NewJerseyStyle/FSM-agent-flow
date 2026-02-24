@@ -15,6 +15,7 @@ class ToolCall:
     id: str
     name: str
     arguments: dict[str, Any]
+    provider_specific_fields: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
