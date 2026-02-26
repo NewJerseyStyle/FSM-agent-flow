@@ -33,7 +33,8 @@ class LiteLLMAdapter:
         self.turn_cost = 0.0
 
     def format_tools(self, tools: list[ToolSpec]) -> list[dict[str, Any]]:
-        return [t.to_openai_schema() for t in tools]
+        schemas = [t.to_openai_schema() for t in tools]
+        return [_fix_schema_for_gemini(s) for s in schemas]
 
     def chat(
         self,
@@ -121,3 +122,31 @@ def _convert_message(m: Message) -> dict[str, Any]:
     if m.name is not None:
         msg["name"] = m.name
     return msg
+
+
+def _fix_schema_for_gemini(schema: dict[str, Any]) -> dict[str, Any]:
+    """Fix OpenAI tool schema for Gemini compatibility.
+    
+    Gemini requires 'items' field for all array types, but OpenAI schema
+    from bare 'list' type hints doesn't include it.
+    """
+    if not isinstance(schema, dict):
+        return schema
+    
+    result = schema.copy()
+    
+    # Fix properties recursively
+    if "properties" in result:
+        result["properties"] = {
+            k: _fix_schema_for_gemini(v) for k, v in result["properties"].items()
+        }
+    
+    # Fix items recursively
+    if "items" in result:
+        result["items"] = _fix_schema_for_gemini(result["items"])
+    
+    # Add items if type is array and missing
+    if result.get("type") == "array" and "items" not in result:
+        result["items"] = {"type": "object"}
+    
+    return result
