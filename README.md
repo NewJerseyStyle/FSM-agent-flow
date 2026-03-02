@@ -14,6 +14,9 @@ Most LLM workflow frameworks either give you too little structure (raw prompt ch
 - **No global singletons** — tools are scoped per state, contexts are explicit
 - **No heavy dependencies** — zero required runtime deps, bring your own LLM client
 
+## Showcase
+- https://negotiatecash.com : A game theory augmented AI consutant service
+
 ## Install
 
 ```bash
